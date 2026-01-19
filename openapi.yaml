@@ -1,0 +1,300 @@
+openapi: 3.0.3
+info:
+  title: PayTo / IDD BA Demo API
+  version: 1.0.0
+  description: |
+    Demo API contract for a PayTo-style mandate (agreement) and Instant Direct Debit (IDD) initiation.
+    This is a BA portfolio mock; it does not connect to real bank payment rails.
+servers:
+  - url: https://example.com/api
+paths:
+  /mandates:
+    post:
+      summary: Create a new mandate (PayTo Agreement)
+      operationId: createMandate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MandateCreateRequest'
+      responses:
+        '201':
+          description: Mandate created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mandate'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /mandates/{mandateId}/authorize:
+    post:
+      summary: Authorize/activate a mandate
+      operationId: authorizeMandate
+      parameters:
+        - in: path
+          name: mandateId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mandate authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mandate'
+        '404':
+          description: Mandate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /mandates/{mandateId}:
+    patch:
+      summary: Amend/Pause/Cancel a mandate
+      operationId: updateMandate
+      parameters:
+        - in: path
+          name: mandateId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MandateUpdateRequest'
+      responses:
+        '200':
+          description: Mandate updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mandate'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Mandate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /debits:
+    post:
+      summary: Initiate an Instant Direct Debit (IDD) under a mandate
+      operationId: createDebit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebitCreateRequest'
+      responses:
+        '201':
+          description: Debit accepted (received/validated)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debit'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Business rule conflict (e.g., mandate not active)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /debits/{debitId}:
+    get:
+      summary: Get debit status
+      operationId: getDebit
+      parameters:
+        - in: path
+          name: debitId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Debit status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debit'
+        '404':
+          description: Debit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /webhooks/outcomes:
+    post:
+      summary: Receive outcome notifications (success/failure)
+      operationId: postOutcome
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutcomeEvent'
+      responses:
+        '202':
+          description: Accepted
+components:
+  schemas:
+    MandateStatus:
+      type: string
+      enum: [PENDING_AUTH, ACTIVE, PAUSED, CANCELLED]
+    Frequency:
+      type: string
+      enum: [ONE_OFF, WEEKLY, MONTHLY]
+    DebitStatus:
+      type: string
+      enum: [RECEIVED, VALIDATED, REJECTED, SETTLED]
+    MandateCreateRequest:
+      type: object
+      required: [payerId, creditorId, maxAmount, frequency, startDate]
+      properties:
+        payerId:
+          type: string
+          format: uuid
+        creditorId:
+          type: string
+          format: uuid
+        maxAmount:
+          type: number
+          format: double
+          example: 250.0
+        frequency:
+          $ref: '#/components/schemas/Frequency'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+    MandateUpdateRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/MandateStatus'
+        maxAmount:
+          type: number
+          format: double
+        endDate:
+          type: string
+          format: date
+    Mandate:
+      type: object
+      required: [mandateId, payerId, creditorId, maxAmount, frequency, startDate, status]
+      properties:
+        mandateId:
+          type: string
+          format: uuid
+        payerId:
+          type: string
+          format: uuid
+        creditorId:
+          type: string
+          format: uuid
+        maxAmount:
+          type: number
+          format: double
+        frequency:
+          $ref: '#/components/schemas/Frequency'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/MandateStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DebitCreateRequest:
+      type: object
+      required: [mandateId, amount]
+      properties:
+        mandateId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+          example: 49.99
+    Debit:
+      type: object
+      required: [debitId, mandateId, amount, status]
+      properties:
+        debitId:
+          type: string
+          format: uuid
+        mandateId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+        status:
+          $ref: '#/components/schemas/DebitStatus'
+        rejectionReason:
+          type: string
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+    OutcomeEvent:
+      type: object
+      required: [eventId, debitId, eventType, eventTime]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        debitId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum: [OUTCOME_SUCCESS, OUTCOME_FAILURE]
+        eventTime:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: true
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: maxAmount must be greater than 0
+        details:
+          type: object
+          additionalProperties: true
